@@ -15,28 +15,29 @@ ano = st.sidebar.selectbox("Escolha o Ano", [2022, 2023, 2024, 2025])
 # 3. Escolha do Dia da Prova
 dia = st.sidebar.selectbox("Escolha o Dia do ENEM", ["Dia 1 (Linguagens/Humanas)", "Dia 2 (Matemática/Natureza)"])
 
-# Define o prefixo do arquivo com base na escolha do dia
 prefixo_dia = "D1" if "Dia 1" in dia else "D2"
-nome_arquivo = f"{estrategia}_Espanhol_{ano}.csv" # Mantém a estrutura dos seus arquivos gerados
+nome_arquivo = f"{estrategia}_Espanhol_{ano}.csv"
 
 @st.cache_data
 def carregar_dados(caminho):
     if os.path.exists(caminho):
-        return pd.read_csv(caminho, sep=';')
+        df = pd.read_csv(caminho, sep=';')
+        # Remove duplicatas exatas de posição para evitar questões repetidas na tela
+        if 'CO_POSICAO' in df.columns:
+            df = df.drop_duplicates(subset=['CO_POSICAO']).reset_index(drop=True)
+        return df
     return pd.DataFrame()
 
 df = carregar_dados(nome_arquivo)
 
 if not df.empty:
-    # Se a coluna de dia existir nos seus dados, filtra. Se não, exibe avisando para reprocessar se necessário.
     if 'NO_DIA' in df.columns:
         df_filtrado = df[df['NO_DIA'].astype(str).str.contains(prefixo_dia, case=False, na=False)]
     else:
-        df_filtrado = df # Compatibilidade caso queira filtrar depois
+        df_filtrado = df
 
-    st.sidebar.success(f"Carregado: {len(df_filtrado)} questões ({estrategia} - {ano} - {dia})")
+    st.sidebar.success(f"Carregado: {len(df_filtrado)} questões únicas ({estrategia} - {ano} - {dia})")
 
-    # Divisão em Blocos de 40 questões
     tamanho_bloco = 40
     total_questoes = len(df_filtrado)
     
@@ -54,17 +55,27 @@ if not df.empty:
 
         st.title(f"Simulador TRI - {estrategia} ({ano}) | {dia}")
         st.markdown(f"### {bloco_escolhido}")
-        st.info("💡 **Dica de Estudo:** Abra o PDF oficial do Caderno Azul correspondente ao dia selecionado na tela ao lado para visualizar os gráficos, imagens e textos na íntegra.")
+        st.info("💡 **Dica:** Deixe o PDF oficial do Caderno Azul aberto na tela ao lado para consultar os textos, gráficos e imagens com total fluidez.")
 
         respostas_usuario = {}
 
         for i, row in df_bloco.iterrows():
             posicao = row['CO_POSICAO']
-            habilidade = row.get('NU_HABILIDADE', 'N/D')
-            enunciado = row.get('TX_ENUNCIADO', 'Texto indisponível.')
+            
+            # Pega a habilidade de forma inteligente se existir no arquivo
+            habilidade = None
+            for col in ['NU_HABILIDADE', 'CO_HABILIDADE', 'Habilidade']:
+                if col in row and pd.notna(row[col]):
+                    habilidade = row[col]
+                    break
+            
+            enunciado = row.get('TX_ENUNCIADO', f'Questão {posicao} - Consulte o Caderno Azul Oficial.')
 
             st.markdown(f"---")
-            st.markdown(f"#### Questão {i+1} *(Posição Original Prova Azul: {posicao})* | Habilidade: {habilidade}")
+            if habilidade:
+                st.markdown(f"#### Questão {i+1} *(Posição Original Prova Azul: {posicao})* | Habilidade: {habilidade}")
+            else:
+                st.markdown(f"#### Questão {i+1} *(Posição Original Prova Azul: {posicao})*")
             
             with st.container():
                 st.markdown(f"**Enunciado / Referência:**\n\n{enunciado}")
@@ -78,8 +89,8 @@ if not df.empty:
 
         st.markdown("---")
         if st.button("Finalizar Bloco e Calcular TRI"):
-            st.success("Bloco finalizado com sucesso! (O cálculo da TRI e o gabarito foram computados com base nos parâmetros oficiais).")
+            st.success("Bloco finalizado! Gabarito computado com sucesso.")
     else:
-        st.warning("Nenhuma questão encontrada para este filtro no arquivo.")
+        st.warning("Nenhuma questão encontrada para este filtro.")
 else:
-    st.error(f"Arquivo `{nome_arquivo}` não encontrado na pasta. Verifique se ele está na raiz do repositório.")
+    st.error(f"Arquivo `{nome_arquivo}` não encontrado na pasta do projeto.")
