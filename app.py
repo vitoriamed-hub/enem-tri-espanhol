@@ -1,4 +1,4 @@
-import streamlit as st
+iimport streamlit as st
 import pandas as pd
 import os
 
@@ -6,23 +6,16 @@ st.set_page_config(page_title="Simulador ENEM TRI", layout="wide")
 
 st.sidebar.title("Painel de Controle")
 
-# 1. Escolha da Estratégia
 estrategia = st.sidebar.selectbox("Escolha a Estratégia", ["Escudo", "Acelerador"])
-
-# 2. Escolha do Ano
 ano = st.sidebar.selectbox("Escolha o Ano", [2022, 2023, 2024, 2025])
-
-# 3. Escolha do Dia da Prova
 dia = st.sidebar.selectbox("Escolha o Dia do ENEM", ["Dia 1 (Linguagens/Humanas)", "Dia 2 (Matemática/Natureza)"])
 
-prefixo_dia = "D1" if "Dia 1" in dia else "D2"
 nome_arquivo = f"{estrategia}_Espanhol_{ano}.csv"
 
 @st.cache_data
 def carregar_dados(caminho):
     if os.path.exists(caminho):
         df = pd.read_csv(caminho, sep=';')
-        # Remove duplicatas exatas de posição para evitar questões repetidas na tela
         if 'CO_POSICAO' in df.columns:
             df = df.drop_duplicates(subset=['CO_POSICAO']).reset_index(drop=True)
         return df
@@ -31,12 +24,18 @@ def carregar_dados(caminho):
 df = carregar_dados(nome_arquivo)
 
 if not df.empty:
-    if 'NO_DIA' in df.columns:
-        df_filtrado = df[df['NO_DIA'].astype(str).str.contains(prefixo_dia, case=False, na=False)]
+    # Filtro inteligente baseado na estrutura oficial das posições do Caderno Azul do ENEM
+    if 'CO_POSICAO' in df.columns:
+        if "Dia 1" in dia:
+            # Dia 1 no ENEM geralmente vai até a posição 90 ou 135 dependendo do escopo
+            df_filtrado = df[df['CO_POSICAO'] <= 90]
+        else:
+            # Dia 2 (Matemática e Natureza) fica na segunda metade
+            df_filtrado = df[df['CO_POSICAO'] > 90]
     else:
         df_filtrado = df
 
-    st.sidebar.success(f"Carregado: {len(df_filtrado)} questões únicas ({estrategia} - {ano} - {dia})")
+    st.sidebar.success(f"Carregado: {len(df_filtrado)} questões ({estrategia} - {ano} - {dia})")
 
     tamanho_bloco = 40
     total_questoes = len(df_filtrado)
@@ -55,14 +54,12 @@ if not df.empty:
 
         st.title(f"Simulador TRI - {estrategia} ({ano}) | {dia}")
         st.markdown(f"### {bloco_escolhido}")
-        st.info("💡 **Dica:** Deixe o PDF oficial do Caderno Azul aberto na tela ao lado para consultar os textos, gráficos e imagens com total fluidez.")
+        st.info("💡 **Dica:** Deixe o PDF oficial do Caderno Azul aberto na tela ao lado para consultar os textos, gráficos e imagens.")
 
         respostas_usuario = {}
 
         for i, row in df_bloco.iterrows():
             posicao = row['CO_POSICAO']
-            
-            # Pega a habilidade de forma inteligente se existir no arquivo
             habilidade = None
             for col in ['NU_HABILIDADE', 'CO_HABILIDADE', 'Habilidade']:
                 if col in row and pd.notna(row[col]):
